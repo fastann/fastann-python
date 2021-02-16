@@ -4,8 +4,9 @@ import random
 
 def make_indices(dimensions):
     indices = []
-    indices.append(fa.FlatIndex())
+    indices.append(fa.BruteForceIndex())
     indices.append(fa.BPForestIndex(dimensions, 6, -1))
+    indices.append(fa.HnswIndex(10,10000000,200,300,20,"angular",200,False))
 
     return indices
 
@@ -14,7 +15,6 @@ def make_test_data(dimensions, indices):
     for i in range(1000):
         v = [random.gauss(0, 1) for z in range(dimensions)]
         for idx in indices:
-            print("hello", idx)
             idx.add(v, "{}".format(i))
 
 

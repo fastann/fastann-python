@@ -31,8 +31,8 @@ fn transform(src: &[(node::Node<f32, String>, f32)]) -> Vec<(ANNNode, f32)> {
 }
 
 #[pyclass]
-struct FlatIndex {
-    _idx: Box<fa::flat::flat::FlatIndex<f32, String>>, // use f32 and string, because pyo3 don't support generic
+struct BruteForceIndex {
+    _idx: Box<fa::bf::bf::BruteForceIndex<f32, String>>, // use f32 and string, because pyo3 don't support generic
 }
 
 #[pyclass]
@@ -40,12 +40,17 @@ struct BPForestIndex {
     _idx: Box<fa::bpforest::bpforest::BinaryProjectionForestIndex<f32, String>>,
 }
 
+#[pyclass]
+struct HnswIndex {
+    _idx: Box<fa::hnsw::hnsw::HnswIndex<f32, String>>,
+}
+
 #[pymethods]
-impl FlatIndex {
+impl BruteForceIndex {
     #[new]
     fn new() -> Self {
-        FlatIndex {
-            _idx: Box::new(fa::flat::flat::FlatIndex::<f32, String>::new(
+        BruteForceIndex {
+            _idx: Box::new(fa::bf::bf::BruteForceIndex::<f32, String>::new(
                 fa::core::parameters::Parameters::default(),
             )),
         }
@@ -61,6 +66,34 @@ impl BPForestIndex {
                 f32,
                 String,
             >::new(dimension, tree_num, search_k)),
+        }
+    }
+}
+
+#[pymethods]
+impl HnswIndex {
+    #[new]
+    fn new(
+        demension: usize,
+        max_item: usize,
+        n_neigh: usize,
+        n_neigh0: usize,
+        max_level: usize,
+        metri: String,
+        ef: usize,
+        has_deletion: bool,
+    ) -> Self {
+        HnswIndex {
+            _idx: Box::new(fa::hnsw::hnsw::HnswIndex::<f32, String>::new(
+                demension,
+                max_item,
+                n_neigh,
+                n_neigh0,
+                max_level,
+                util::util::metrics_transform(&metri),
+                ef,
+                has_deletion,
+            )),
         }
     }
 }
@@ -125,13 +158,15 @@ macro_rules! inherit_ann_index_method {
     };
 }
 
-inherit_ann_index_method!(FlatIndex);
+inherit_ann_index_method!(BruteForceIndex);
 inherit_ann_index_method!(BPForestIndex);
+inherit_ann_index_method!(HnswIndex);
 
 /// A Python module implemented in Rust.
 #[pymodule]
 fn fastann(py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<FlatIndex>()?;
+    m.add_class::<BruteForceIndex>()?;
     m.add_class::<BPForestIndex>()?;
+    m.add_class::<HnswIndex>()?;
     Ok(())
 }
