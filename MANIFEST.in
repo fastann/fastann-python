@@ -1,0 +1,2 @@
+include fastann/Cargo.toml
+recursive-include fastann/src *
