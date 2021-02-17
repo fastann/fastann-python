@@ -1,6 +1,7 @@
 mod util;
 use fa;
 use fa::core::ann_index::ANNIndex;
+use fa::core::arguments;
 use fa::core::metrics;
 use fa::core::node;
 use pyo3::conversion::FromPyObject;
@@ -45,14 +46,17 @@ struct HnswIndex {
     _idx: Box<fa::hnsw::hnsw::HnswIndex<f32, String>>,
 }
 
+#[pyclass]
+struct PQIndex {
+    _idx: Box<fa::pq::pq::PQIndex<f32, String>>,
+}
+
 #[pymethods]
 impl BruteForceIndex {
     #[new]
     fn new() -> Self {
         BruteForceIndex {
-            _idx: Box::new(fa::bf::bf::BruteForceIndex::<f32, String>::new(
-                fa::core::parameters::Parameters::default(),
-            )),
+            _idx: Box::new(fa::bf::bf::BruteForceIndex::<f32, String>::new()),
         }
     }
 }
@@ -98,6 +102,28 @@ impl HnswIndex {
     }
 }
 
+#[pymethods]
+impl PQIndex {
+    #[new]
+    fn new(
+        demension: usize,
+        n_sub: usize,
+        sub_bits: usize,
+        train_epoch: usize,
+        metri: String,
+    ) -> Self {
+        PQIndex {
+            _idx: Box::new(fa::pq::pq::PQIndex::<f32, String>::new(
+                demension,
+                n_sub,
+                sub_bits,
+                train_epoch,
+                util::util::metrics_transform(&metri),
+            )),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! inherit_ann_index_method {
     (  $ann_idx:ident  ) => {
@@ -113,7 +139,11 @@ macro_rules! inherit_ann_index_method {
                 item: &node::Node<f32, String>,
                 k: usize,
             ) -> PyResult<Vec<(ANNNode, f32)>> {
-                Ok(transform(&self._idx.node_search_k(item, k)))
+                Ok(transform(&self._idx.node_search_k(
+                    item,
+                    k,
+                    &arguments::Arguments::new(),
+                ))) //TODO: wrap argument
             }
         }
 
@@ -161,6 +191,7 @@ macro_rules! inherit_ann_index_method {
 inherit_ann_index_method!(BruteForceIndex);
 inherit_ann_index_method!(BPForestIndex);
 inherit_ann_index_method!(HnswIndex);
+inherit_ann_index_method!(PQIndex);
 
 /// A Python module implemented in Rust.
 #[pymodule]
@@ -168,5 +199,6 @@ fn fastann(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<BruteForceIndex>()?;
     m.add_class::<BPForestIndex>()?;
     m.add_class::<HnswIndex>()?;
+    m.add_class::<PQIndex>()?;
     Ok(())
 }

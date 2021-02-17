@@ -1,12 +1,15 @@
-import fastann.target.release.fastann as fa
+import fastann.target.release.fastann as fastann
 import random
 
 
 def make_indices(dimensions):
     indices = []
-    indices.append(fa.BruteForceIndex())
-    indices.append(fa.BPForestIndex(dimensions, 6, -1))
-    indices.append(fa.HnswIndex(10,10000000,200,300,20,"angular",200,False))
+    indices.append(fastann.BruteForceIndex())
+    indices.append(fastann.BPForestIndex(dimensions, 6, -1))
+    indices.append(fastann.HnswIndex(10, 10000000, 200,
+                                300, 20, "angular", 200, False))
+    indices.append(fastann.PQIndex(10, 10, 4,
+                              100,  "angular"))
 
     return indices
 
