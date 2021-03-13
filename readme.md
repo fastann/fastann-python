@@ -23,3 +23,19 @@ python3 setup.py develop --user
 ## Example
 
 see `example.py` file
+
+# Develop
+
+## mac 
+```
+cd fastann
+cargo rustc --release -- -C link-arg=-undefined -C link-arg=dynamic_lookup
+cp -R target/release/libfastann.dylib target/release/fastann.so
+```
+
+## windows 
+```
+cd fastann
+cargo rustc --release
+cp -R target/release/libfastann.dll target/release/fastann.pyd
+```

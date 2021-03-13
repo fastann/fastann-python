@@ -1,6 +1,7 @@
 mod util;
 use fa;
 use fa::core::ann_index::ANNIndex;
+use fa::core::ann_index::SerializableIndex;
 use fa::core::arguments;
 use fa::core::metrics;
 use fa::core::node;
@@ -23,7 +24,7 @@ fn transform(src: &[(node::Node<f32, String>, f32)]) -> Vec<(ANNNode, f32)> {
         dst.push((
             ANNNode {
                 vectors: i.0.vectors().clone(),
-                idx: i.0.idx().unwrap(),
+                idx: (*i.0.idx().as_ref().unwrap()).to_string(),
             },
             i.1.clone(),
         ));
@@ -31,102 +32,14 @@ fn transform(src: &[(node::Node<f32, String>, f32)]) -> Vec<(ANNNode, f32)> {
     dst
 }
 
-#[pyclass]
-struct BruteForceIndex {
-    _idx: Box<fa::bf::bf::BruteForceIndex<f32, String>>, // use f32 and string, because pyo3 don't support generic
-}
-
-#[pyclass]
-struct BPForestIndex {
-    _idx: Box<fa::bpforest::bpforest::BinaryProjectionForestIndex<f32, String>>,
-}
-
-#[pyclass]
-struct HnswIndex {
-    _idx: Box<fa::hnsw::hnsw::HnswIndex<f32, String>>,
-}
-
-#[pyclass]
-struct PQIndex {
-    _idx: Box<fa::pq::pq::PQIndex<f32, String>>,
-}
-
-#[pymethods]
-impl BruteForceIndex {
-    #[new]
-    fn new() -> Self {
-        BruteForceIndex {
-            _idx: Box::new(fa::bf::bf::BruteForceIndex::<f32, String>::new()),
-        }
-    }
-}
-
-#[pymethods]
-impl BPForestIndex {
-    #[new]
-    fn new(dimension: usize, tree_num: i32, search_k: i32) -> Self {
-        BPForestIndex {
-            _idx: Box::new(fa::bpforest::bpforest::BinaryProjectionForestIndex::<
-                f32,
-                String,
-            >::new(dimension, tree_num, search_k)),
-        }
-    }
-}
-
-#[pymethods]
-impl HnswIndex {
-    #[new]
-    fn new(
-        demension: usize,
-        max_item: usize,
-        n_neigh: usize,
-        n_neigh0: usize,
-        max_level: usize,
-        metri: String,
-        ef: usize,
-        has_deletion: bool,
-    ) -> Self {
-        HnswIndex {
-            _idx: Box::new(fa::hnsw::hnsw::HnswIndex::<f32, String>::new(
-                demension,
-                max_item,
-                n_neigh,
-                n_neigh0,
-                max_level,
-                util::util::metrics_transform(&metri),
-                ef,
-                has_deletion,
-            )),
-        }
-    }
-}
-
-#[pymethods]
-impl PQIndex {
-    #[new]
-    fn new(
-        demension: usize,
-        n_sub: usize,
-        sub_bits: usize,
-        train_epoch: usize,
-        metri: String,
-    ) -> Self {
-        PQIndex {
-            _idx: Box::new(fa::pq::pq::PQIndex::<f32, String>::new(
-                demension,
-                n_sub,
-                sub_bits,
-                train_epoch,
-                util::util::metrics_transform(&metri),
-            )),
-        }
-    }
-}
-
 #[macro_export]
 macro_rules! inherit_ann_index_method {
-    (  $ann_idx:ident  ) => {
+    (  $ann_idx:ident,$type_expr: ty) => {
+        #[pyclass]
+        struct $ann_idx {
+            _idx: Box<$type_expr>,
+        }
+
         impl $ann_idx {
             fn add_node(&mut self, item: &node::Node<f32, String>) -> PyResult<bool> {
                 return match self._idx.add_node(item) {
@@ -142,7 +55,7 @@ macro_rules! inherit_ann_index_method {
                 Ok(transform(&self._idx.node_search_k(
                     item,
                     k,
-                    &arguments::Arguments::new(),
+                    &arguments::Args::new(),
                 ))) //TODO: wrap argument
             }
         }
@@ -184,21 +97,113 @@ macro_rules! inherit_ann_index_method {
             fn name(&self) -> PyResult<String> {
                 Ok(stringify!($ann_idx).to_string())
             }
+
+            #[staticmethod]
+            fn load(path: String) -> Self {
+                $ann_idx {
+                    _idx: Box::new(<$type_expr>::load(&path, &arguments::Args::new()).unwrap()),
+                }
+            }
+
+            fn dump(&mut self, path: String) {
+                self._idx.dump(&path, &arguments::Args::new());
+            }
         }
     };
 }
 
-inherit_ann_index_method!(BruteForceIndex);
-inherit_ann_index_method!(BPForestIndex);
-inherit_ann_index_method!(HnswIndex);
-inherit_ann_index_method!(PQIndex);
+inherit_ann_index_method!(BruteForceIndex, fa::bf::bf::BruteForceIndex<f32,String>);
+inherit_ann_index_method!(BPForestIndex, fa::bpforest::bpforest::BinaryProjectionForestIndex<f32, String>);
+inherit_ann_index_method!(HNSWIndex, fa::hnsw::hnsw::HNSWIndex<f32, String>);
+inherit_ann_index_method!(PQIndex, fa::pq::pq::PQIndex<f32, String>);
+inherit_ann_index_method!(SatelliteSystemGraphIndex, fa::mrng::ssg::SatelliteSystemGraphIndex<f32, String>);
+
+#[pymethods]
+impl BruteForceIndex {
+    #[new]
+    fn new() -> Self {
+        BruteForceIndex {
+            _idx: Box::new(fa::bf::bf::BruteForceIndex::<f32, String>::new()),
+        }
+    }
+}
+
+#[pymethods]
+impl BPForestIndex {
+    #[new]
+    fn new(dimension: usize, tree_num: i32, search_k: i32) -> Self {
+        BPForestIndex {
+            _idx: Box::new(fa::bpforest::bpforest::BinaryProjectionForestIndex::<
+                f32,
+                String,
+            >::new(dimension, tree_num, search_k)),
+        }
+    }
+}
+
+#[pymethods]
+impl HNSWIndex {
+    #[new]
+    fn new(
+        dimension: usize,
+        max_item: usize,
+        n_neigh: usize,
+        n_neigh0: usize,
+        max_level: usize,
+        ef: usize,
+        has_deletion: bool,
+    ) -> Self {
+        HNSWIndex {
+            _idx: Box::new(fa::hnsw::hnsw::HNSWIndex::<f32, String>::new(
+                dimension,
+                max_item,
+                n_neigh,
+                n_neigh0,
+                max_level,
+                ef,
+                has_deletion,
+            )),
+        }
+    }
+}
+
+#[pymethods]
+impl PQIndex {
+    #[new]
+    fn new(dimension: usize, n_sub: usize, sub_bits: usize, train_epoch: usize) -> Self {
+        PQIndex {
+            _idx: Box::new(fa::pq::pq::PQIndex::<f32, String>::new(
+                dimension,
+                n_sub,
+                sub_bits,
+                train_epoch,
+            )),
+        }
+    }
+}
+
+#[pymethods]
+impl SatelliteSystemGraphIndex {
+    #[new]
+    fn new(        dimension: usize,
+        neighbor_size: usize,
+        init_k: usize,
+        index_size: usize,
+        angle: f32,
+        root_size: usize,) -> Self {
+        SatelliteSystemGraphIndex {
+            _idx: Box::new(fa::mrng::ssg::SatelliteSystemGraphIndex::<f32, String>::new(dimension, neighbor_size, init_k, index_size, angle, root_size)),
+        }
+    }
+}
 
 /// A Python module implemented in Rust.
 #[pymodule]
 fn fastann(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<BruteForceIndex>()?;
     m.add_class::<BPForestIndex>()?;
-    m.add_class::<HnswIndex>()?;
+    m.add_class::<HNSWIndex>()?;
     m.add_class::<PQIndex>()?;
+    m.add_class::<SatelliteSystemGraphIndex>()?;
     Ok(())
 }
